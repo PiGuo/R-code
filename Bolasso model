@@ -1,0 +1,43 @@
+# BoLasso model
+# Author: Pi Guo
+library(glmnet)
+BoLasso=function(x, y, BM=50, kfold=10, ...){
+    varx <- colnames(x)
+    rowx <- nrow(x)
+    n <- length(y)
+    res <- vector("list",BM)
+
+    if (rowx!=n){
+      stop("The number of rows in x is not equal to the length of y!")
+        }
+
+    for(i in 1:BM){
+        repeat{ 
+            s <- sample(n, replace=TRUE)
+            if(length(table(y[s])) >= 2 & length(table(y[-s])) >= 2)
+                break
+              }
+        BoostrapX <- as.matrix(x[s, ])
+        colnames(BoostrapX) <- colnames(x)
+        BoostrapY <- y[s]
+        cvfit <- cv.glmnet(x=BoostrapX,y=BoostrapY,type.measure="deviance",nfold=kfold,family="binomial")
+        model.final <- cvfit$glmnet.fit
+        nzero <- as.matrix(coef(model.final, s=cvfit$lambda.min))
+        nzero <- names(nzero[nzero[,1]!=0,])
+
+        res[[i]] <- nzero[which(nzero!="(Intercept)")]
+        cat("Boostrap ", i, ":", "\n")
+        cat(res[[i]], "\n")
+                  }
+
+# Intersecting
+    for(i in 1:BM){
+        if (length(res[[i]])!=0){
+        varx <- intersect(res[[i]], varx)
+        cat("Boostrap ", i, ":", "\n")
+        cat(varx, "\n")
+                               }
+                  }
+
+    varx
+}
