@@ -1,0 +1,50 @@
+# Two-stage hybrid LASSO model
+# Author: Pi Guo
+# Loading R packages
+library(glmnet)
+library(lqa)
+
+# Main function
+TSLasso=function(x, y, wfactor=1, kfold=3, ...){
+    varx <- colnames(x)
+    rowx <- nrow(x)
+    n <- length(y)
+    if (rowx!=n){
+      stop("The number of rows in x is not equal to the length of y!")
+        }
+
+    # Lasso model
+    cvfit <- cv.glmnet(x=x, y=y, type.measure="deviance", nfold=kfold, family="binomial")
+    model.final <- cvfit$glmnet.fit
+    nzero <- as.matrix(coef(model.final, s=cvfit$lambda.min))
+    nzero <- as.matrix(nzero[rownames(nzero)!="(Intercept)",])
+    var_Lasso <- names(nzero[nzero[,1]!=0,])
+    cat("Lasso model finish!", "\n")
+    
+    if(!is.null(var_Lasso)){
+    # Adaptive Lasso model
+    x_Ada <- x[, var_Lasso]
+    y_Ada <- y
+    w <- (abs(as.vector(nzero[nzero[,1]!=0,])))^(-wfactor)
+    cvfit_Ada <- cv.lqa(y_Ada, x_Ada, lambda.candidates=list(seq(0.001,5,by=0.01)), family=binomial(), 
+                        penalty.family=lasso, n.fold=5, loss.func="aic.loss", intercept=TRUE)
+    lamd <- cvfit_Ada$lambda.opt
+    fit_Ada <- lqa(y_Ada~x_Ada, family=binomial(), penalty=adaptive.lasso(lambda=lamd, al.weights=w))
+    var_Ada1 <- round(fit_Ada$coef, 4)
+    var_Ada2 <- names(round(fit_Ada$coef, 4))
+    var_Ada3 <- var_Ada1[var_Ada2!="(Intercept)"]
+    names(var_Ada3) <- var_Lasso
+    var_Ada4 <- names(var_Ada3[var_Ada3!=0])
+    cat("Adaptive Lasso model finish!", "\n")
+                            }
+
+    else {
+      #stop("No variables are selected by the Lasso method!")
+      print("No variables are selected by the Lasso method!")
+      var_Ada4 <-c()
+          }
+
+ res <- list(Coefficients=var_Ada1, Variables=var_Ada4)
+ res
+
+}
